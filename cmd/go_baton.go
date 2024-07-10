@@ -39,7 +39,8 @@ type contextKey string
 var mainLogger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
 
 type cliFlags struct {
-	level string
+	level   string
+	recurse bool
 }
 
 var flags cliFlags
@@ -119,14 +120,23 @@ func CLI() {
 	rootCmd.SetVersionTemplate(`{{printf "%s\n" .Version}}`)
 	putCmd := &cobra.Command{
 		Use:   "put",
-		Short: "Upload files to irods.",
+		Short: "Upload files to iRODS.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return irods.Put(logger, cmd.Context().Value(jsonKey).(map[string]string), cmd.Context().Value(accountKey).(*types.IRODSAccount))
 		},
 	}
 
 	rootCmd.AddCommand(putCmd)
+	//putCmd.Flags().BoolVar(&flags.recurse, "recurse", false, "")
 
+	getCmd := &cobra.Command{
+		Use:   "get",
+		Short: "Download files from iRODS.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return irods.Get(logger, cmd.Context().Value(jsonKey).(map[string]string), cmd.Context().Value(accountKey).(*types.IRODSAccount))
+		},
+	}
+	rootCmd.AddCommand(getCmd)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
