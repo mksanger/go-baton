@@ -35,7 +35,7 @@ const (
 func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
 	jsonContents map[string]interface{}, operation string) (err error) {
 	var iPath string
-	var meta map[string]interface{}
+	var meta []interface{}
 
 	if operation != JSON_ARG_METADATA_ADD && operation != JSON_ARG_METADATA_REM {
 		return fmt.Errorf("operation argument != %s or %s: %w",
@@ -47,7 +47,7 @@ func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
 		return err
 	}
 
-	if meta, err = parsing.GetMetaValue(logger, jsonContents); err != nil {
+	if meta, err = parsing.GetAVUsValue(logger, jsonContents); err != nil {
 		logger.Err(err)
 		return err
 	}
@@ -61,5 +61,26 @@ func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
 	defer filesystem.Release()
 	logger.Info().Msgf("%s %v to %s", operation, meta, iPath)
 
+	for _, metaInterface := range meta {
+		var metaValue map[string]interface{}
+		if err = parsing.ExtractJSONValue(logger, metaInterface, &metaValue); err != nil {
+			return err
+		}
+		var attr, value, units string
+		if attr, value, units, err = parsing.GetAVUValues(logger, metaValue); err != nil {
+			return err
+		}
+		if operation == "add" {
+			if err = filesystem.AddMetadata(iPath, attr, value, units); err != nil {
+				logger.Err(err).Msg("Error adding metadata attribute: %s, value: %s, units: %s")
+				return err
+			}
+		} else if operation == "rem" {
+			if err = filesystem.DeleteMetadataByName(iPath, attr); err != nil {
+				logger.Err(err).Msg("Error removing metadata attribute: %s, value: %s, units: %s")
+				return err
+			}
+		}
+	}
 	return nil
 }

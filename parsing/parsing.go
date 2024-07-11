@@ -22,7 +22,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/rs/zerolog"
 )
@@ -79,22 +78,37 @@ func ParseStdin(logger zerolog.Logger, args []string) (inputContents map[string]
 	return inputContents
 }
 
-func getStringValue(logger zerolog.Logger, object map[string]interface{}, key string, short_key string) (value string, err error) {
-	if value = fmt.Sprintf("%+v", object[key]); value != "" && value != "<nil>" {
-		return value, nil
+func ExtractJSONValue(logger zerolog.Logger, value interface{}, extracted any) (err error) {
+	var marshalled []byte
+	if marshalled, err = json.Marshal(value); err != nil {
+		logger.Err(err).Msg("Error remarshalling value from json")
+		return err
 	}
-	logger.Debug().Msgf("No key %s, looking for short key %s", key, short_key)
 
-	if value = fmt.Sprintf("%+v", object[short_key]); value != "" && value != "<nil>" {
-		logger.Info().Msgf("Found %s: %s", key, value)
-		return value, nil
+	if err = json.Unmarshal(marshalled, &extracted); err != nil {
+		logger.Err(err).Msg("Error unmarshalling value from json")
+		return err
 	}
-	return value, fmt.Errorf("no %s key found: %w", key, ErrMissingKey)
+	return nil
 }
 
-func getArrayValue(logger zerolog.Logger, object map[string]interface{}, key string, short_key string) (value []string, err error) {
-	value, err = json.Unmarshal(json.Marshal(object[key]))
-	return
+func getStringValue(logger zerolog.Logger, object map[string]interface{}, key string, short_key string) (value string, err error) {
+	if err = ExtractJSONValue(logger, object[key], &value); err != nil {
+		return "", err
+	}
+	if value == "" {
+		logger.Debug().Msgf("No key %s, looking for short key %s", key, short_key)
+		if err = ExtractJSONValue(logger, object[short_key], &value); err != nil {
+			return "", err
+		}
+	}
+
+	if value == "" {
+		return value, fmt.Errorf("no %s key found: %w", key, ErrMissingKey)
+	}
+	logger.Info().Msgf("Found %s: %s", key, value)
+	return value, nil
+
 }
 
 func GetCollectionValue(logger zerolog.Logger, object map[string]interface{}) (string, error) {
@@ -145,20 +159,25 @@ func GetLocalPathValue(logger zerolog.Logger, object map[string]interface{}) (pa
 	return filepath.Clean(fmt.Sprintf("%s/%s", dir, file)), nil
 }
 
-func GetAVUsValue(logger zerolog.Logger, object map[string]interface{}) (string, error) {
-	return getStringValue(logger, object, JSON_AVUS_KEY, "")
+func GetAVUsValue(logger zerolog.Logger, object map[string]interface{}) (avus []interface{}, err error) {
+	if err = ExtractJSONValue(logger, object[JSON_AVUS_KEY], &avus); err != nil {
+		return nil, err
+	}
+	return avus, nil
 }
 
-func GetMetaValue(logger zerolog.Logger, object map[string]interface{}) (avujson map[string]string, err error) {
-	var avus string
-	if avus, err = GetAVUsValue(logger, object); err != nil {
-		return nil, err
+func GetAVUValues(logger zerolog.Logger, object map[string]interface{}) (attr string, value string,
+	units string, err error) {
+	if attr, err = getStringValue(logger, object, JSON_ATTRIBUTE_KEY, JSON_ATTRIBUTE_SHORT_KEY); err != nil {
+		return "", "", "", err
 	}
-	decoder := json.NewDecoder(strings.NewReader(avus))
 
-	if err = decoder.Decode(&avujson); err != nil {
-		logger.Err(err).Msg("Failed to decode avus")
-		return nil, err
+	if value, err = getStringValue(logger, object, JSON_VALUE_KEY, JSON_VALUE_SHORT_KEY); err != nil {
+		return "", "", "", err
 	}
-	return avujson, nil
+
+	if units, err = getStringValue(logger, object, JSON_UNITS_KEY, JSON_UNITS_SHORT_KEY); err != nil {
+		return "", "", "", err
+	}
+	return attr, value, units, nil
 }
