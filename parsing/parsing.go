@@ -18,6 +18,7 @@ package parsing
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -125,7 +126,7 @@ func GetiRODSPathValue(logger zerolog.Logger, object map[string]interface{}) (pa
 		return "", err
 	}
 
-	if obj, err = GetDataObjectValue(logger, object); err == ErrMissingKey {
+	if obj, err = GetDataObjectValue(logger, object); errors.Is(err, ErrMissingKey) {
 		logger.Debug().Msg("No Data Object key in input json")
 		return filepath.Clean(coll), nil
 	} else if err != nil {
@@ -149,7 +150,7 @@ func GetLocalPathValue(logger zerolog.Logger, object map[string]interface{}) (pa
 		return "", err
 	}
 
-	if file, err = GetFileValue(logger, object); err == ErrMissingKey {
+	if file, err = GetFileValue(logger, object); errors.Is(err, ErrMissingKey) {
 		logger.Info().Msg("No File key in input json")
 		return filepath.Clean(dir), nil
 	} else if err != nil {
@@ -177,7 +178,7 @@ func GetAVUValues(logger zerolog.Logger, object map[string]interface{}) (attr st
 	}
 
 	// units are optional
-	if units, err = getStringValue(logger, object, JSON_UNITS_KEY, JSON_UNITS_SHORT_KEY); err != nil && err.Error() != ErrMissingKey.Error() {
+	if units, err = getStringValue(logger, object, JSON_UNITS_KEY, JSON_UNITS_SHORT_KEY); err != nil && !errors.Is(err, ErrMissingKey) {
 		return "", "", "", err
 	}
 	return attr, value, units, nil
