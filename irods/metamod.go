@@ -18,6 +18,8 @@
 package irods
 
 import (
+	"fmt"
+
 	"github.com/cyverse/go-irodsclient/fs"
 	"github.com/cyverse/go-irodsclient/irods/types"
 	"github.com/rs/zerolog"
@@ -25,18 +27,30 @@ import (
 	"github.com/wtsi-npg/go-baton/parsing"
 )
 
-func Get(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}) (err error) {
-	var iPath, lPath string
+const (
+	JSON_ARG_METADATA_ADD = "add"
+	JSON_ARG_METADATA_REM = "rem"
+)
+
+func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
+	jsonContents map[string]interface{}, operation string) (err error) {
+	var iPath string
+	var meta map[string]interface{}
+
+	if operation != JSON_ARG_METADATA_ADD && operation != JSON_ARG_METADATA_REM {
+		return fmt.Errorf("operation argument != %s or %s: %w",
+			JSON_ARG_METADATA_ADD, JSON_ARG_METADATA_REM, ErrMissingArgument)
+	}
+
 	if iPath, err = parsing.GetiRODSPathValue(logger, jsonContents); err != nil {
 		logger.Err(err)
 		return err
 	}
 
-	if lPath, err = parsing.GetLocalPathValue(logger, jsonContents); err != nil {
+	if meta, err = parsing.GetMetaValue(logger, jsonContents); err != nil {
 		logger.Err(err)
 		return err
 	}
-	logger.Info().Msgf("Downloading to %s from %s", lPath, iPath)
 
 	filesystem, err := fs.NewFileSystemWithDefault(account, app_info.Name)
 	if err != nil {
@@ -45,9 +59,7 @@ func Get(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[st
 	}
 
 	defer filesystem.Release()
+	logger.Info().Msgf("%s %v to %s", operation, meta, iPath)
 
-	if err = filesystem.DownloadFile(iPath, "", lPath, true, func(processed int64, total int64) {}); err != nil {
-		return err
-	}
 	return nil
 }

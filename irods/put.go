@@ -25,14 +25,14 @@ import (
 	"github.com/wtsi-npg/go-baton/parsing"
 )
 
-func Put(logger zerolog.Logger, jsonContents map[string]string, account *types.IRODSAccount) (err error) {
+func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}) (err error) {
 	var iPath, lPath string
-	if iPath, err = parsing.GetiRODSPathValue(jsonContents, logger); err != nil {
+	if iPath, err = parsing.GetiRODSPathValue(logger, jsonContents); err != nil {
 		logger.Err(err)
 		return err
 	}
 
-	if lPath, err = parsing.GetLocalPathValue(jsonContents, logger); err != nil {
+	if lPath, err = parsing.GetLocalPathValue(logger, jsonContents); err != nil {
 		logger.Err(err)
 		return err
 	}

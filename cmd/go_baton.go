@@ -39,8 +39,9 @@ type contextKey string
 var mainLogger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
 
 type cliFlags struct {
-	level   string
-	recurse bool
+	level     string
+	operation string
+	recurse   bool
 }
 
 var flags cliFlags
@@ -97,7 +98,7 @@ func CLI() {
 		Run:     printHelp,
 		Version: app_info.Version,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
-			inputContents := parsing.ParseStdin(args, logger)
+			inputContents := parsing.ParseStdin(logger, args)
 			envFile := irods.IRODSEnvFilePath()
 			manager, err := irods.NewICommandsEnvironmentManager(logger, envFile)
 			if err != nil {
@@ -122,7 +123,7 @@ func CLI() {
 		Use:   "put",
 		Short: "Upload files to iRODS.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return irods.Put(logger, cmd.Context().Value(jsonKey).(map[string]string), cmd.Context().Value(accountKey).(*types.IRODSAccount))
+			return irods.Put(logger, cmd.Context().Value(accountKey).(*types.IRODSAccount), cmd.Context().Value(jsonKey).(map[string]interface{}))
 		},
 	}
 
@@ -131,12 +132,23 @@ func CLI() {
 
 	getCmd := &cobra.Command{
 		Use:   "get",
-		Short: "Download files from iRODS.",
+		Short: "Download objects from iRODS.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return irods.Get(logger, cmd.Context().Value(jsonKey).(map[string]string), cmd.Context().Value(accountKey).(*types.IRODSAccount))
+			return irods.Get(logger, cmd.Context().Value(accountKey).(*types.IRODSAccount), cmd.Context().Value(jsonKey).(map[string]interface{}))
 		},
 	}
 	rootCmd.AddCommand(getCmd)
+
+	metaModCmd := &cobra.Command{
+		Use:   "metamod",
+		Short: "Alter metadata on objects",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return irods.MetaMod(logger, cmd.Context().Value(accountKey).(*types.IRODSAccount), cmd.Context().Value(jsonKey).(map[string]interface{}), flags.operation)
+		},
+	}
+	rootCmd.AddCommand(metaModCmd)
+	metaModCmd.Flags().StringVar(&flags.operation, "operation", "", "Operation to perform. One of [add, rem]. Required")
+	metaModCmd.MarkFlagRequired("operation")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
