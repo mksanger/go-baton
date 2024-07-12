@@ -49,5 +49,6 @@ func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[st
 	if err = filesystem.UploadFile(lPath, iPath, "", true, true, true, func(processed int64, total int64) {}); err != nil {
 		return err
 	}
+	logger.Debug().Msgf("Uploaded %s to %s", lPath, iPath)
 	return nil
 }

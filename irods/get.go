@@ -49,5 +49,6 @@ func Get(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[st
 	if err = filesystem.DownloadFile(iPath, "", lPath, true, func(processed int64, total int64) {}); err != nil {
 		return err
 	}
+	logger.Debug().Msgf("Downloaded %s from %s", lPath, iPath)
 	return nil
 }

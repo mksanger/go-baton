@@ -70,16 +70,20 @@ func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
 		if attr, value, units, err = parsing.GetAVUValues(logger, metaValue); err != nil {
 			return err
 		}
-		if operation == "add" {
+		if operation == "add" && value != "" {
 			if err = filesystem.AddMetadata(iPath, attr, value, units); err != nil {
 				logger.Err(err).Msg("Error adding metadata attribute: %s, value: %s, units: %s")
 				return err
 			}
-		} else if operation == "rem" {
+			logger.Debug().Msgf("Added attribute: %s, value: %s, units: %s to %s", attr, value, units, iPath)
+		} else if operation == "remove" || operation == "rem" {
 			if err = filesystem.DeleteMetadataByName(iPath, attr); err != nil {
 				logger.Err(err).Msg("Error removing metadata attribute: %s, value: %s, units: %s")
 				return err
 			}
+			logger.Debug().Msgf("Removed attribute: %s from %s", attr, iPath)
+		} else if value == "" {
+			return parsing.ErrMissingKey
 		}
 	}
 	return nil

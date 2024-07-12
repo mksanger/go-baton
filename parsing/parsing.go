@@ -173,11 +173,12 @@ func GetAVUValues(logger zerolog.Logger, object map[string]interface{}) (attr st
 		return "", "", "", err
 	}
 
-	if value, err = getStringValue(logger, object, JSON_VALUE_KEY, JSON_VALUE_SHORT_KEY); err != nil {
+	// value is not required for del
+	if value, err = getStringValue(logger, object, JSON_VALUE_KEY, JSON_VALUE_SHORT_KEY); err != nil && !errors.Is(err, ErrMissingKey) {
 		return "", "", "", err
 	}
 
-	// units are optional
+	// units are optional always
 	if units, err = getStringValue(logger, object, JSON_UNITS_KEY, JSON_UNITS_SHORT_KEY); err != nil && !errors.Is(err, ErrMissingKey) {
 		return "", "", "", err
 	}
