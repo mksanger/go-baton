@@ -27,7 +27,7 @@ import (
 	"github.com/cyverse/go-irodsclient/icommands"
 	"github.com/cyverse/go-irodsclient/irods/types"
 	"github.com/rs/zerolog"
-	"github.com/wtsi-npg/go-baton/app_info"
+	"github.com/wtsi-npg/go-baton/appInfo"
 )
 
 const (
@@ -145,7 +145,7 @@ func NewIRODSAccount(logger zerolog.Logger,
 	// Before returning the account, check that it is usable by connecting to the
 	// iRODS server and accessing the root collection.
 	var filesystem *fs.FileSystem
-	filesystem, err = fs.NewFileSystemWithDefault(account, app_info.Name)
+	filesystem, err = fs.NewFileSystemWithDefault(account, appInfo.Name)
 	if err != nil {
 		logger.Err(err).Msg("Failed to create an iRODS file system")
 		return nil, err

@@ -28,7 +28,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spf13/cobra"
-	"github.com/wtsi-npg/go-baton/app_info"
+	"github.com/wtsi-npg/go-baton/appInfo"
 	"github.com/wtsi-npg/go-baton/irods"
 	"github.com/wtsi-npg/go-baton/parsing"
 	"golang.org/x/term"
@@ -39,9 +39,12 @@ type contextKey string
 var mainLogger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
 
 type cliFlags struct {
+	coll      bool
 	level     string
+	obj       bool
 	operation string
 	recurse   bool
+	zone      string
 }
 
 var flags cliFlags
@@ -75,8 +78,8 @@ func configureRootLogger(flags *cliFlags) zerolog.Logger {
 
 	return zerolog.New(zerolog.SyncWriter(writer)).With().
 		Timestamp().
-		Str("app", app_info.Name).
-		Str("version", app_info.Version).
+		Str("app", appInfo.Name).
+		Str("version", appInfo.Version).
 		Int("pid", os.Getpid()).
 		Logger().Level(level)
 }
@@ -96,8 +99,13 @@ func CLI() {
 		Use:     "go-baton",
 		Short:   "A go equivalent of baton for testing the go iRODS clients.",
 		Run:     printHelp,
-		Version: app_info.Version,
+		Version: appInfo.Version,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
+			// Need to print help explicitly or this function will hang waiting for stdin
+			if cmd.CalledAs() == "go-baton" {
+				printHelp(cmd, args)
+				os.Exit(0)
+			}
 			inputContents := parsing.ParseStdin(logger, args)
 			envFile := irods.IRODSEnvFilePath()
 			manager, err := irods.NewICommandsEnvironmentManager(logger, envFile)
@@ -141,14 +149,26 @@ func CLI() {
 
 	metaModCmd := &cobra.Command{
 		Use:   "metamod",
-		Short: "Alter metadata on objects",
+		Short: "Alter metadata on objects or collections",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return irods.MetaMod(logger, cmd.Context().Value(accountKey).(*types.IRODSAccount), cmd.Context().Value(jsonKey).(map[string]interface{}), flags.operation)
 		},
 	}
 	rootCmd.AddCommand(metaModCmd)
-	metaModCmd.Flags().StringVar(&flags.operation, "operation", "", "Operation to perform. One of [add, rem]. Required")
+	metaModCmd.Flags().StringVar(&flags.operation, "operation", "", "Operation to perform. One of [add, remove]. \nRequired")
 	metaModCmd.MarkFlagRequired("operation")
+
+	metaQueryCmd := &cobra.Command{
+		Use:   "metaquery",
+		Short: "Query object or collection metadata",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return irods.MetaQuery(logger, cmd.Context().Value(accountKey).(*types.IRODSAccount), cmd.Context().Value(jsonKey).(map[string]interface{}), flags.zone, flags.coll, flags.obj)
+		},
+	}
+	rootCmd.AddCommand(metaQueryCmd)
+	metaQueryCmd.Flags().StringVar(&flags.zone, "zone", "", "Zone in which to perform query. \nRequired")
+	metaQueryCmd.Flags().BoolVar(&flags.coll, "collection", false, "Query collection metadata. Default false")
+	metaQueryCmd.Flags().BoolVar(&flags.obj, "object", false, "Query object metadata. Default false")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {

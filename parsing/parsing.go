@@ -62,9 +62,67 @@ const (
 	JSON_CREATED_SHORT_KEY  = "c"
 	JSON_MODIFIED_KEY       = "modified"
 	JSON_MODIFIED_SHORT_KEY = "m"
+
+	// Metadata genquery API operations
+	JSON_OPERATOR_KEY       = "operator"
+	JSON_OPERATOR_SHORT_KEY = "o"
+	JSON_ARGS_KEY           = "args"
+	JSON_ARGS_SHORT_KEY     = "?"
+	JSON_ARG_META_ADD       = "add"
+	JSON_ARG_META_REM       = "rem"
+
+	// SQL specific query operations
+	JSON_SPECIFIC_KEY  = "specific"
+	JSON_SQL_KEY       = "sql"
+	JSON_SQL_SHORT_KEY = "s"
+
+	// baton operations
+	JSON_TARGET_KEY          = "target"
+	JSON_RESULT_KEY          = "result"
+	JSON_SINGLE_RESULT_KEY   = "single"
+	JSON_MULTIPLE_RESULT_KEY = "multiple"
+	JSON_OP_KEY              = "operation"
+	JSON_OP_SHORT_KEY        = "op"
+
+	JSON_CHMOD_OP     = "chmod"
+	JSON_CHECKSUM_OP  = "checksum"
+	JSON_GET_OP       = "get"
+	JSON_LIST_OP      = "list"
+	JSON_METAMOD_OP   = "metamod"
+	JSON_METAQUERY_OP = "metaquery"
+	JSON_PUT_OP       = "put"
+	JSON_MOVE_OP      = "move"
+	JSON_RM_OP        = "remove"
+	JSON_MKCOLL_OP    = "mkdir"
+	JSON_RMCOLL_OP    = "rmdir"
+
+	JSON_OP_ARGS_KEY       = "arguments"
+	JSON_OP_ARGS_SHORT_KEY = "args"
+
+	JSON_OP_ACL           = "acl"
+	JSON_OP_AVU           = "avu"
+	JSON_OP_CHECKSUM      = "checksum"
+	JSON_OP_VERIFY        = "verify"
+	JSON_OP_FORCE         = "force"
+	JSON_OP_COLLECTION    = "collection"
+	JSON_OP_CONTENTS      = "contents"
+	JSON_OP_OBJECT        = "object"
+	JSON_OP_OPERATION     = "operation"
+	JSON_OP_RAW           = "raw"
+	JSON_OP_RECURSE       = "recurse"
+	JSON_OP_REPLICATE     = "replicate"
+	JSON_OP_SAVE          = "save"
+	JSON_OP_SINGLE_SERVER = "single-server"
+	JSON_OP_SIZE          = "size"
+	JSON_OP_TIMESTAMP     = "timestamp"
+	JSON_OP_PATH          = "path"
+
+	VALID_REPLICATE   = "1"
+	INVALID_REPLICATE = "0"
 )
 
-func ParseStdin(logger zerolog.Logger, args []string) (inputContents map[string]interface{}) {
+func ParseStdin(logger zerolog.Logger, args []string) (
+	inputContents map[string]interface{}) {
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		logger.Err(err).Msg("Failed to read stdin")
@@ -79,7 +137,8 @@ func ParseStdin(logger zerolog.Logger, args []string) (inputContents map[string]
 	return inputContents
 }
 
-func ExtractJSONValue(logger zerolog.Logger, value interface{}, extracted any) (err error) {
+func ExtractJSONValue(logger zerolog.Logger, value interface{}, extracted any) (
+	err error) {
 	var marshalled []byte
 	if marshalled, err = json.Marshal(value); err != nil {
 		logger.Err(err).Msg("Error remarshalling value from json")
@@ -93,7 +152,8 @@ func ExtractJSONValue(logger zerolog.Logger, value interface{}, extracted any) (
 	return nil
 }
 
-func getStringValue(logger zerolog.Logger, object map[string]interface{}, key string, short_key string) (value string, err error) {
+func getStringValue(logger zerolog.Logger, object map[string]interface{},
+	key string, short_key string) (value string, err error) {
 	if err = ExtractJSONValue(logger, object[key], &value); err != nil {
 		return "", err
 	}
@@ -112,15 +172,18 @@ func getStringValue(logger zerolog.Logger, object map[string]interface{}, key st
 
 }
 
-func GetCollectionValue(logger zerolog.Logger, object map[string]interface{}) (string, error) {
+func GetCollectionValue(logger zerolog.Logger, object map[string]interface{}) (
+	string, error) {
 	return getStringValue(logger, object, JSON_COLLECTION_KEY, JSON_COLLECTION_SHORT_KEY)
 }
 
-func GetDataObjectValue(logger zerolog.Logger, object map[string]interface{}) (string, error) {
+func GetDataObjectValue(logger zerolog.Logger, object map[string]interface{}) (
+	string, error) {
 	return getStringValue(logger, object, JSON_DATA_OBJECT_KEY, JSON_DATA_OBJECT_SHORT_KEY)
 }
 
-func GetiRODSPathValue(logger zerolog.Logger, object map[string]interface{}) (path string, err error) {
+func GetiRODSPathValue(logger zerolog.Logger, object map[string]interface{}) (
+	path string, err error) {
 	var coll, obj string
 	if coll, err = GetCollectionValue(logger, object); err != nil {
 		return "", err
@@ -136,7 +199,8 @@ func GetiRODSPathValue(logger zerolog.Logger, object map[string]interface{}) (pa
 	return filepath.Clean(fmt.Sprintf("%s/%s", coll, obj)), nil
 }
 
-func GetDirectoryValue(logger zerolog.Logger, object map[string]interface{}) (string, error) {
+func GetDirectoryValue(logger zerolog.Logger, object map[string]interface{}) (
+	string, error) {
 	return getStringValue(logger, object, JSON_DIRECTORY_KEY, JSON_DIRECTORY_SHORT_KEY)
 }
 
@@ -144,7 +208,8 @@ func GetFileValue(logger zerolog.Logger, object map[string]interface{}) (string,
 	return getStringValue(logger, object, JSON_FILE_KEY, "")
 }
 
-func GetLocalPathValue(logger zerolog.Logger, object map[string]interface{}) (path string, err error) {
+func GetLocalPathValue(logger zerolog.Logger, object map[string]interface{}) (
+	path string, err error) {
 	var dir, file string
 	if dir, err = GetDirectoryValue(logger, object); err != nil {
 		return "", err
@@ -160,27 +225,49 @@ func GetLocalPathValue(logger zerolog.Logger, object map[string]interface{}) (pa
 	return filepath.Clean(fmt.Sprintf("%s/%s", dir, file)), nil
 }
 
-func GetAVUsValue(logger zerolog.Logger, object map[string]interface{}) (avus []interface{}, err error) {
+func GetAVUsList(logger zerolog.Logger, object map[string]interface{}) (
+	avus []interface{}, err error) {
 	if err = ExtractJSONValue(logger, object[JSON_AVUS_KEY], &avus); err != nil {
 		return nil, err
 	}
 	return avus, nil
 }
 
-func GetAVUValues(logger zerolog.Logger, object map[string]interface{}) (attr string, value string,
-	units string, err error) {
-	if attr, err = getStringValue(logger, object, JSON_ATTRIBUTE_KEY, JSON_ATTRIBUTE_SHORT_KEY); err != nil {
+func GetAVUValues(logger zerolog.Logger, object map[string]interface{}) (
+	attr string, value string, units string, err error) {
+	if attr, err = getStringValue(
+		logger, object, JSON_ATTRIBUTE_KEY, JSON_ATTRIBUTE_SHORT_KEY,
+	); err != nil {
 		return "", "", "", err
 	}
 
 	// value is not required for del
-	if value, err = getStringValue(logger, object, JSON_VALUE_KEY, JSON_VALUE_SHORT_KEY); err != nil && !errors.Is(err, ErrMissingKey) {
+	if value, err = getStringValue(
+		logger, object, JSON_VALUE_KEY, JSON_VALUE_SHORT_KEY,
+	); err != nil && !errors.Is(err, ErrMissingKey) {
 		return "", "", "", err
 	}
 
 	// units are optional always
-	if units, err = getStringValue(logger, object, JSON_UNITS_KEY, JSON_UNITS_SHORT_KEY); err != nil && !errors.Is(err, ErrMissingKey) {
+	if units, err = getStringValue(
+		logger, object, JSON_UNITS_KEY, JSON_UNITS_SHORT_KEY,
+	); err != nil && !errors.Is(err, ErrMissingKey) {
 		return "", "", "", err
 	}
 	return attr, value, units, nil
+}
+
+func GetAVUQuery(logger zerolog.Logger, object map[string]interface{}) (
+	attr string, value string, op string, err error) {
+	if attr, value, _, err = GetAVUValues(logger, object); err != nil {
+		return "", "", "", err
+	}
+
+	// operator defaults to equals
+	if op, err = getStringValue(logger, object, JSON_OPERATOR_KEY,
+		JSON_OPERATOR_SHORT_KEY); err != nil && !errors.Is(err, ErrMissingKey) {
+		return "", "", "", err
+	}
+
+	return attr, value, op, nil
 }

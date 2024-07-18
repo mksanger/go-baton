@@ -23,13 +23,8 @@ import (
 	"github.com/cyverse/go-irodsclient/fs"
 	"github.com/cyverse/go-irodsclient/irods/types"
 	"github.com/rs/zerolog"
-	"github.com/wtsi-npg/go-baton/app_info"
+	"github.com/wtsi-npg/go-baton/appInfo"
 	"github.com/wtsi-npg/go-baton/parsing"
-)
-
-const (
-	JSON_ARG_METADATA_ADD = "add"
-	JSON_ARG_METADATA_REM = "rem"
 )
 
 func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
@@ -37,24 +32,21 @@ func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
 	var iPath string
 	var meta []interface{}
 
-	if operation != JSON_ARG_METADATA_ADD && operation != JSON_ARG_METADATA_REM {
+	if operation != parsing.JSON_ARG_META_ADD && operation != parsing.JSON_ARG_META_REM {
 		return fmt.Errorf("operation argument != %s or %s: %w",
-			JSON_ARG_METADATA_ADD, JSON_ARG_METADATA_REM, ErrMissingArgument)
+			parsing.JSON_ARG_META_ADD, parsing.JSON_ARG_META_REM, ErrMissingArgument)
 	}
 
 	if iPath, err = parsing.GetiRODSPathValue(logger, jsonContents); err != nil {
-		logger.Err(err)
 		return err
 	}
 
-	if meta, err = parsing.GetAVUsValue(logger, jsonContents); err != nil {
-		logger.Err(err)
+	if meta, err = parsing.GetAVUsList(logger, jsonContents); err != nil {
 		return err
 	}
 
-	filesystem, err := fs.NewFileSystemWithDefault(account, app_info.Name)
+	filesystem, err := fs.NewFileSystemWithDefault(account, appInfo.Name)
 	if err != nil {
-		logger.Err(err)
 		return err
 	}
 
@@ -70,13 +62,13 @@ func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
 		if attr, value, units, err = parsing.GetAVUValues(logger, metaValue); err != nil {
 			return err
 		}
-		if operation == "add" && value != "" {
+		if operation == parsing.JSON_ARG_META_ADD && value != "" {
 			if err = filesystem.AddMetadata(iPath, attr, value, units); err != nil {
 				logger.Err(err).Msg("Error adding metadata attribute: %s, value: %s, units: %s")
 				return err
 			}
 			logger.Debug().Msgf("Added attribute: %s, value: %s, units: %s to %s", attr, value, units, iPath)
-		} else if operation == "remove" || operation == "rem" {
+		} else if operation == parsing.JSON_RM_OP || operation == parsing.JSON_ARG_META_REM {
 			if err = filesystem.DeleteMetadataByName(iPath, attr); err != nil {
 				logger.Err(err).Msg("Error removing metadata attribute: %s, value: %s, units: %s")
 				return err

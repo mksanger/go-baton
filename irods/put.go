@@ -21,7 +21,7 @@ import (
 	"github.com/cyverse/go-irodsclient/fs"
 	"github.com/cyverse/go-irodsclient/irods/types"
 	"github.com/rs/zerolog"
-	"github.com/wtsi-npg/go-baton/app_info"
+	"github.com/wtsi-npg/go-baton/appInfo"
 	"github.com/wtsi-npg/go-baton/parsing"
 )
 
@@ -38,7 +38,7 @@ func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[st
 	}
 	logger.Info().Msgf("Uploading %s to %s", lPath, iPath)
 
-	filesystem, err := fs.NewFileSystemWithDefault(account, app_info.Name)
+	filesystem, err := fs.NewFileSystemWithDefault(account, appInfo.Name)
 	if err != nil {
 		logger.Err(err)
 		return err

@@ -1,4 +1,4 @@
-package app_info
+package appInfo
 
 var (
 	Name    = "go-baton"
