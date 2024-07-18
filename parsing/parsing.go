@@ -24,6 +24,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cyverse/go-irodsclient/irods/common"
+	"github.com/cyverse/go-irodsclient/irods/message"
 	"github.com/rs/zerolog"
 )
 
@@ -120,6 +122,13 @@ const (
 	VALID_REPLICATE   = "1"
 	INVALID_REPLICATE = "0"
 )
+
+type MetaQueryColumns struct {
+	AttributeCondition common.ICATColumnNumber
+	ValueCondition     common.ICATColumnNumber
+	ReturnColumns      []common.ICATColumnNumber
+	JSONKeys           []string
+}
 
 func ParseStdin(logger zerolog.Logger, args []string) (
 	inputContents map[string]interface{}) {
@@ -270,4 +279,19 @@ func GetAVUQuery(logger zerolog.Logger, object map[string]interface{}) (
 	}
 
 	return attr, value, op, nil
+}
+
+func IRODSXMLToJSON(logger zerolog.Logger,
+	response message.IRODSMessageQueryResponse, columns MetaQueryColumns) (
+	jsonResponse []interface{}, err error) {
+	for i := range response.SQLResult[0].Values {
+		member := make(map[string]string)
+		for j := 0; j < response.AttributeCount; j++ {
+			member[columns.JSONKeys[j]] = response.SQLResult[j].Values[i]
+		}
+		jsonResponse = append(jsonResponse, member)
+
+	}
+
+	return jsonResponse, nil
 }

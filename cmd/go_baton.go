@@ -167,8 +167,8 @@ func CLI() {
 	}
 	rootCmd.AddCommand(metaQueryCmd)
 	metaQueryCmd.Flags().StringVar(&flags.zone, "zone", "", "Zone in which to perform query. \nRequired")
-	metaQueryCmd.Flags().BoolVar(&flags.coll, "collection", false, "Query collection metadata. Default false")
-	metaQueryCmd.Flags().BoolVar(&flags.obj, "object", false, "Query object metadata. Default false")
+	metaQueryCmd.Flags().BoolVar(&flags.coll, "coll", false, "Limit metadata search to collection metadata only")
+	metaQueryCmd.Flags().BoolVar(&flags.obj, "obj", false, "Limit metadata search to data object metadata only")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {

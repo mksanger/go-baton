@@ -18,26 +18,31 @@
 package irods
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/cyverse/go-irodsclient/fs"
 	"github.com/cyverse/go-irodsclient/irods/common"
 	"github.com/cyverse/go-irodsclient/irods/connection"
 	"github.com/cyverse/go-irodsclient/irods/message"
 	"github.com/cyverse/go-irodsclient/irods/types"
-	"github.com/gookit/goutil/dump"
 	"github.com/rs/zerolog"
 	"github.com/wtsi-npg/go-baton/appInfo"
 	"github.com/wtsi-npg/go-baton/parsing"
 )
 
-func BuildCollectionMetaQuery(logger zerolog.Logger, avus []interface{},
-	zone string) (request *message.IRODSMessageQueryRequest, err error) {
-	var attr, val, op string
+func BuildMetaQuery(logger zerolog.Logger, avus []interface{},
+	columns parsing.MetaQueryColumns, zone string) (
+	request *message.IRODSMessageQueryRequest, err error,
+) {
+	var attr, op, val string
 
 	query := message.NewIRODSMessageQueryRequest(common.MaxQueryRows, 0, 0, 0)
 	query.AddKeyVal(common.ZONE_KW, zone)
-	query.AddSelect(common.ICAT_COLUMN_COLL_NAME, 1)
+	for _, column := range columns.ReturnColumns {
+		query.AddSelect(column, 1)
+	}
 
 	for _, avu := range avus {
 		var avujson map[string]interface{}
@@ -50,51 +55,10 @@ func BuildCollectionMetaQuery(logger zerolog.Logger, avus []interface{},
 
 		attrCondition := fmt.Sprintf("= '%s'", attr)
 		valueCondition := fmt.Sprintf("%s '%s'", op, val)
-		query.AddCondition(common.ICAT_COLUMN_META_COLL_ATTR_NAME, attrCondition)
-		query.AddCondition(common.ICAT_COLUMN_META_COLL_ATTR_VALUE, valueCondition)
+		query.AddCondition(columns.AttributeCondition, attrCondition)
+		query.AddCondition(columns.ValueCondition, valueCondition)
 	}
 	return query, nil
-}
-
-func BuildDataObjectMetaQuery(logger zerolog.Logger, avus []interface{},
-	zone string) (request *message.IRODSMessageQueryRequest, err error) {
-	var attr, val, op string
-
-	query := message.NewIRODSMessageQueryRequest(common.MaxQueryRows, 0, 0, 0)
-	query.AddKeyVal(common.ZONE_KW, zone)
-	query.AddSelect(common.ICAT_COLUMN_COLL_NAME, 1)
-	query.AddSelect(common.ICAT_COLUMN_DATA_NAME, 1)
-
-	for _, avu := range avus {
-		var avujson map[string]interface{}
-		if err := parsing.ExtractJSONValue(logger, avu, &avujson); err != nil {
-			return nil, err
-		}
-		if attr, val, op, err = parsing.GetAVUQuery(logger, avujson); err != nil {
-			return nil, err
-		}
-
-		attrCondition := fmt.Sprintf("= '%s'", attr)
-		valueCondition := fmt.Sprintf("%s '%s'", op, val)
-		query.AddCondition(common.ICAT_COLUMN_META_DATA_ATTR_NAME, attrCondition)
-		query.AddCondition(common.ICAT_COLUMN_META_DATA_ATTR_VALUE, valueCondition)
-	}
-	return query, nil
-}
-
-func ExtractIRODSResponse(logger zerolog.Logger,
-	response message.IRODSMessageQueryResponse) ([]string, error) {
-	dump.P(response)
-	for attr := 0; attr < response.AttributeCount; attr++ {
-		sqlResult := response.SQLResult[attr]
-		dump.P(sqlResult)
-		//if len(sqlResult.Values) != response.RowCount {
-		//	return nil, fmt.Errorf("Did not receive correct number of collection rows in attr #%s", attr)
-		//}
-		//
-		//for row := 0
-	}
-	return nil, nil
 }
 
 func MetaQuery(logger zerolog.Logger, account *types.IRODSAccount,
@@ -103,8 +67,13 @@ func MetaQuery(logger zerolog.Logger, account *types.IRODSAccount,
 	var avus []interface{}
 	var conn *connection.IRODSConnection
 	var query *message.IRODSMessageQueryRequest
-	var response []string
+	var response, jsonOut []interface{}
 
+	if !collections && !objects {
+		//To match behaviour of baton
+		collections = true
+		objects = true
+	}
 	//if account.ClientZone != zone {
 	//	logger.Debug().Msgf("Changing zone from %s to %s", account.ClientZone, zone)
 	//	if account, err = types.CreateIRODSAccount(
@@ -135,7 +104,13 @@ func MetaQuery(logger zerolog.Logger, account *types.IRODSAccount,
 	defer conn.Unlock()
 
 	if collections {
-		if query, err = BuildCollectionMetaQuery(logger, avus, zone); err != nil {
+		collectionColumns := parsing.MetaQueryColumns{
+			AttributeCondition: common.ICAT_COLUMN_META_COLL_ATTR_NAME,
+			ValueCondition:     common.ICAT_COLUMN_META_COLL_ATTR_VALUE,
+			ReturnColumns:      []common.ICATColumnNumber{common.ICAT_COLUMN_COLL_NAME},
+			JSONKeys:           []string{parsing.JSON_COLLECTION_KEY},
+		}
+		if query, err = BuildMetaQuery(logger, avus, collectionColumns, zone); err != nil {
 			return err
 		}
 		queryResult := message.IRODSMessageQueryResponse{}
@@ -156,13 +131,21 @@ func MetaQuery(logger zerolog.Logger, account *types.IRODSAccount,
 			logger.Info().Msgf("No collections found with metadata: %s", avus)
 		}
 
-		response, err = ExtractIRODSResponse(logger, queryResult)
-		dump.P(response)
+		if response, err = parsing.IRODSXMLToJSON(logger, queryResult, collectionColumns); err != nil {
+			return err
+		}
+		jsonOut = append(jsonOut, response...)
 
 	}
 
 	if objects {
-		if query, err = BuildDataObjectMetaQuery(logger, avus, zone); err != nil {
+		objectColumns := parsing.MetaQueryColumns{
+			AttributeCondition: common.ICAT_COLUMN_META_DATA_ATTR_NAME,
+			ValueCondition:     common.ICAT_COLUMN_META_DATA_ATTR_VALUE,
+			ReturnColumns:      []common.ICATColumnNumber{common.ICAT_COLUMN_COLL_NAME, common.ICAT_COLUMN_DATA_NAME},
+			JSONKeys:           []string{parsing.JSON_COLLECTION_KEY, parsing.JSON_DATA_OBJECT_KEY},
+		}
+		if query, err = BuildMetaQuery(logger, avus, objectColumns, zone); err != nil {
 			return err
 		}
 		queryResult := message.IRODSMessageQueryResponse{}
@@ -183,9 +166,14 @@ func MetaQuery(logger zerolog.Logger, account *types.IRODSAccount,
 			logger.Info().Msgf("No data objects found with metadata: %s", avus)
 		}
 
-		response, err = ExtractIRODSResponse(logger, queryResult)
-		dump.P(response)
+		if response, err = parsing.IRODSXMLToJSON(logger, queryResult, objectColumns); err != nil {
+			return err
+		}
+		jsonOut = append(jsonOut, response...)
 	}
+
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.Encode(jsonOut)
 
 	return nil
 }
