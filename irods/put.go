@@ -27,13 +27,19 @@ import (
 
 func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}) (err error) {
 	var iPath, lPath string
-	if iPath, err = parsing.GetiRODSPathValue(logger, jsonContents); err != nil {
+	var coll, dir bool
+	if iPath, coll, err = parsing.GetiRODSPath(logger, jsonContents); err != nil {
 		logger.Err(err)
 		return err
 	}
 
-	if lPath, err = parsing.GetLocalPathValue(logger, jsonContents); err != nil {
+	if lPath, dir, err = parsing.GetLocalPath(logger, jsonContents); err != nil {
 		logger.Err(err)
+		return err
+	}
+	if dir && !coll {
+		err = parsing.ErrMissingKey
+		logger.Err(err).Msg("iRODS path for directory put should not be data object")
 		return err
 	}
 	logger.Info().Msgf("Uploading %s to %s", lPath, iPath)

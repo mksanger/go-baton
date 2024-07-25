@@ -37,7 +37,7 @@ func MetaMod(logger zerolog.Logger, account *types.IRODSAccount,
 			parsing.JSON_ARG_META_ADD, parsing.JSON_ARG_META_REM, ErrMissingArgument)
 	}
 
-	if iPath, err = parsing.GetiRODSPathValue(logger, jsonContents); err != nil {
+	if iPath, _, err = parsing.GetiRODSPath(logger, jsonContents); err != nil {
 		return err
 	}
 

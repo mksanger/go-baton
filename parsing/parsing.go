@@ -26,6 +26,7 @@ import (
 
 	"github.com/cyverse/go-irodsclient/irods/common"
 	"github.com/cyverse/go-irodsclient/irods/message"
+	"github.com/cyverse/go-irodsclient/irods/types"
 	"github.com/rs/zerolog"
 )
 
@@ -191,21 +192,21 @@ func GetDataObjectValue(logger zerolog.Logger, object map[string]interface{}) (
 	return getStringValue(logger, object, JSON_DATA_OBJECT_KEY, JSON_DATA_OBJECT_SHORT_KEY)
 }
 
-func GetiRODSPathValue(logger zerolog.Logger, object map[string]interface{}) (
-	path string, err error) {
+func GetiRODSPath(logger zerolog.Logger, object map[string]interface{}) (
+	path string, coll_only bool, err error) {
 	var coll, obj string
 	if coll, err = GetCollectionValue(logger, object); err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	if obj, err = GetDataObjectValue(logger, object); errors.Is(err, ErrMissingKey) {
 		logger.Debug().Msg("No Data Object key in input json")
-		return filepath.Clean(coll), nil
+		return filepath.Clean(coll), true, nil
 	} else if err != nil {
-		return "", err
+		return "", false, err
 	}
 
-	return filepath.Clean(fmt.Sprintf("%s/%s", coll, obj)), nil
+	return filepath.Clean(fmt.Sprintf("%s/%s", coll, obj)), false, nil
 }
 
 func GetDirectoryValue(logger zerolog.Logger, object map[string]interface{}) (
@@ -217,21 +218,30 @@ func GetFileValue(logger zerolog.Logger, object map[string]interface{}) (string,
 	return getStringValue(logger, object, JSON_FILE_KEY, "")
 }
 
-func GetLocalPathValue(logger zerolog.Logger, object map[string]interface{}) (
-	path string, err error) {
+func GetLocalPath(logger zerolog.Logger, object map[string]interface{}) (
+	path string, dir_only bool, err error) {
 	var dir, file string
 	if dir, err = GetDirectoryValue(logger, object); err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	if file, err = GetFileValue(logger, object); errors.Is(err, ErrMissingKey) {
 		logger.Info().Msg("No File key in input json")
-		return filepath.Clean(dir), nil
+		return filepath.Clean(dir), true, nil
 	} else if err != nil {
-		return "", err
+		return "", false, err
 	}
 
-	return filepath.Clean(fmt.Sprintf("%s/%s", dir, file)), nil
+	return filepath.Clean(fmt.Sprintf("%s/%s", dir, file)), false, nil
+}
+
+func GetACLList(logger zerolog.Logger, object map[string]interface{}) (
+	acls []interface{}, err error) {
+	if err = ExtractJSONValue(logger, object[JSON_ACCESS_KEY], acls); err != nil {
+		return nil, err
+	}
+
+	return acls, nil
 }
 
 func GetAVUsList(logger zerolog.Logger, object map[string]interface{}) (
@@ -279,6 +289,22 @@ func GetAVUQuery(logger zerolog.Logger, object map[string]interface{}) (
 	}
 
 	return attr, value, op, nil
+}
+
+func GetACLQuery(logger zerolog.Logger, object map[string]interface{}) (
+	owner string, level types.IRODSAccessLevelType, zone string, err error) {
+	var levelstr string
+	if owner, err = getStringValue(logger, object, JSON_OWNER_KEY, ""); err != nil {
+		return "", "", "", err
+	}
+	if levelstr, err = getStringValue(logger, object, JSON_LEVEL_KEY, ""); err != nil {
+		return "", "", "", err
+	}
+	if zone, err = getStringValue(logger, object, JSON_ZONE_KEY, ""); err != nil &&
+		!errors.Is(err, ErrMissingKey) {
+		return "", "", "", err
+	}
+	return owner, types.IRODSAccessLevelType(levelstr), zone, err
 }
 
 func IRODSXMLToJSON(logger zerolog.Logger,

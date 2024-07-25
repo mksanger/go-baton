@@ -19,41 +19,64 @@ package irods
 
 import (
 	"github.com/cyverse/go-irodsclient/fs"
+	"github.com/cyverse/go-irodsclient/irods/connection"
+	irods_fs "github.com/cyverse/go-irodsclient/irods/fs"
 	"github.com/cyverse/go-irodsclient/irods/types"
 	"github.com/rs/zerolog"
+
 	"github.com/wtsi-npg/go-baton/appInfo"
 	"github.com/wtsi-npg/go-baton/parsing"
 )
 
-func Get(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}) (err error) {
-	var iPath, lPath string
-	var coll, dir bool
+func Chmod(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}, recurse bool) (err error) {
+	var iPath, owner, zone string
+	var level types.IRODSAccessLevelType
+	var acls []interface{}
+	var coll bool
+	var aclValue map[string]interface{}
+	var conn *connection.IRODSConnection
+
 	if iPath, coll, err = parsing.GetiRODSPath(logger, jsonContents); err != nil {
-		logger.Err(err)
 		return err
 	}
 
-	if lPath, dir, err = parsing.GetLocalPath(logger, jsonContents); err != nil {
-		logger.Err(err)
+	if acls, err = parsing.GetACLList(logger, jsonContents); err != nil {
 		return err
 	}
-	if coll && !dir {
-		err = parsing.ErrMissingKey
-		logger.Err(err).Msg("local path for collection get should not be file")
-	}
-	logger.Info().Msgf("Downloading to %s from %s", lPath, iPath)
 
 	filesystem, err := fs.NewFileSystemWithDefault(account, appInfo.Name)
 	if err != nil {
-		logger.Err(err)
 		return err
 	}
 
 	defer filesystem.Release()
 
-	if err = filesystem.DownloadFile(iPath, "", lPath, true, func(processed int64, total int64) {}); err != nil {
+	if conn, err = filesystem.GetMetadataConnection(); err != nil {
 		return err
 	}
-	logger.Debug().Msgf("Downloaded %s from %s", lPath, iPath)
+
+	conn.Lock()
+
+	defer conn.Unlock()
+
+	for _, acl := range acls {
+		if err = parsing.ExtractJSONValue(logger, acl, &aclValue); err != nil {
+			return err
+		}
+		if owner, level, zone, err = parsing.GetACLQuery(logger, aclValue); err != nil {
+			return err
+		}
+		if coll {
+			if err = irods_fs.ChangeCollectionAccess(conn, iPath, level, owner, zone, recurse, false); err != nil {
+				return err
+			}
+		} else {
+			if err = irods_fs.ChangeDataObjectAccess(conn, iPath, level, owner, zone, false); err != nil {
+				return err
+			}
+		}
+		logger.Debug().Msgf("changed permissions on %s for %s to %s", iPath, owner, level)
+
+	}
 	return nil
 }
