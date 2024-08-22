@@ -28,6 +28,7 @@ import (
 func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}, calculateChecksum bool) (err error) {
 	var iPath, lPath string
 	var coll, dir bool
+	var result *fs.FileTransferResult
 	if iPath, coll, err = parsing.GetiRODSPath(logger, jsonContents); err != nil {
 		logger.Err(err)
 		return err
@@ -52,9 +53,9 @@ func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[st
 
 	defer filesystem.Release()
 
-	if err = filesystem.UploadFile(lPath, iPath, "", true, calculateChecksum, true, func(processed int64, total int64) {}); err != nil {
+	if result, err = filesystem.UploadFile(lPath, iPath, "", true, calculateChecksum, true, func(processed int64, total int64) {}); err != nil {
 		return err
 	}
-	logger.Debug().Msgf("Uploaded %s to %s", lPath, iPath)
+	logger.Debug().Msgf("Uploaded %s to %s", result.LocalPath, result.IRODSPath)
 	return nil
 }

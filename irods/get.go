@@ -28,6 +28,7 @@ import (
 func Get(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}) (err error) {
 	var iPath, lPath string
 	var coll, dir bool
+	var result *fs.FileTransferResult
 	if iPath, coll, err = parsing.GetiRODSPath(logger, jsonContents); err != nil {
 		logger.Err(err)
 		return err
@@ -51,9 +52,9 @@ func Get(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[st
 
 	defer filesystem.Release()
 
-	if err = filesystem.DownloadFile(iPath, "", lPath, true, func(processed int64, total int64) {}); err != nil {
+	if result, err = filesystem.DownloadFile(iPath, "", lPath, true, func(processed int64, total int64) {}); err != nil {
 		return err
 	}
-	logger.Debug().Msgf("Downloaded %s from %s", lPath, iPath)
+	logger.Debug().Msgf("Downloaded %s from %s", result.IRODSPath, result.LocalPath)
 	return nil
 }
