@@ -25,7 +25,7 @@ import (
 	"github.com/wtsi-npg/go-baton/parsing"
 )
 
-func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}) (err error) {
+func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[string]interface{}, calculateChecksum bool) (err error) {
 	var iPath, lPath string
 	var coll, dir bool
 	if iPath, coll, err = parsing.GetiRODSPath(logger, jsonContents); err != nil {
@@ -52,7 +52,7 @@ func Put(logger zerolog.Logger, account *types.IRODSAccount, jsonContents map[st
 
 	defer filesystem.Release()
 
-	if err = filesystem.UploadFile(lPath, iPath, "", true, true, true, func(processed int64, total int64) {}); err != nil {
+	if err = filesystem.UploadFile(lPath, iPath, "", true, calculateChecksum, true, func(processed int64, total int64) {}); err != nil {
 		return err
 	}
 	logger.Debug().Msgf("Uploaded %s to %s", lPath, iPath)

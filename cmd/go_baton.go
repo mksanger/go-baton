@@ -43,7 +43,7 @@ type cliFlags struct {
 	level     string
 	obj       bool
 	operation string
-	recurse   bool
+	checksum  bool
 	zone      string
 }
 
@@ -131,12 +131,12 @@ func CLI() {
 		Use:   "put",
 		Short: "Upload files to iRODS.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return irods.Put(logger, cmd.Context().Value(accountKey).(*types.IRODSAccount), cmd.Context().Value(jsonKey).(map[string]interface{}))
+			return irods.Put(logger, cmd.Context().Value(accountKey).(*types.IRODSAccount), cmd.Context().Value(jsonKey).(map[string]interface{}), flags.checksum)
 		},
 	}
 
 	rootCmd.AddCommand(putCmd)
-	//putCmd.Flags().BoolVar(&flags.recurse, "recurse", false, "")
+	putCmd.Flags().BoolVar(&flags.checksum, "checksum", false, "Calculate the checksum server-side")
 
 	getCmd := &cobra.Command{
 		Use:   "get",
