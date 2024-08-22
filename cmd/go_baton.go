@@ -39,11 +39,12 @@ type contextKey string
 var mainLogger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
 
 type cliFlags struct {
+	checksum  bool
 	coll      bool
 	level     string
 	obj       bool
 	operation string
-	checksum  bool
+	recurse   bool
 	zone      string
 }
 
@@ -169,6 +170,16 @@ func CLI() {
 	metaQueryCmd.Flags().StringVar(&flags.zone, "zone", "", "Zone in which to perform query. \nRequired")
 	metaQueryCmd.Flags().BoolVar(&flags.coll, "coll", false, "Limit metadata search to collection metadata only")
 	metaQueryCmd.Flags().BoolVar(&flags.obj, "obj", false, "Limit metadata search to data object metadata only")
+
+	chmodCmd := &cobra.Command{
+		Use:   "chmod",
+		Short: "Change ACLs of an object or collection",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return irods.Chmod(logger, cmd.Context().Value(accountKey).(*types.IRODSAccount), cmd.Context().Value(jsonKey).(map[string]interface{}), false)
+		},
+	}
+	rootCmd.AddCommand(chmodCmd)
+	chmodCmd.Flags().BoolVar(&flags.recurse, "recurse", false, "Apply acl change recursively if acting on a collection")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
